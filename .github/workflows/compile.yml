@@ -1,0 +1,24 @@
+name: Build and Deploy LaTeX
+on: [push] # Triggers every time you update your code
+
+permissions:
+  contents: write # Allows the action to save the PDF back to your repo
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Compile LaTeX
+        uses: xu-cheng/latex-action@v3
+        with:
+          root_file: main.tex # Change this to your main .tex filename
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: .
+          publish_files: main.pdf # This file will be live at your link
