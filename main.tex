@@ -2,6 +2,9 @@
 %\documentclass[12pt]{article}
 \documentclass[conference]{IEEEtran}
 
+\usepackage{graphicx}
+\graphicspath{ {assets/} }
+
 \usepackage{xcolor}
 \usepackage[margin=1in]{geometry}
 \usepackage{setspace}
@@ -138,7 +141,7 @@ The two primary prediction targets in this study are the Chemical Oxygen Demand 
     \caption{Measured Process Variables Grouped by Treatment Stage}
     \label{tab:variables}
     \centering
-    \includegraphics[width=\linewidth]{assets/dataset.png}
+    \includegraphics[width=\linewidth]{dataset.png}
 \end{table}
 
 A fundamental physical constraint governing this process is the aeration tank's hydraulic retention time of approximately six days. Consequently, influent quality fluctuations required up to six days to manifest in the effluent, meaning contemporaneous sensor readings did not reflect instantaneous cause-and-effect relationships. This temporal delay dictated the time-series architecture of the predictive models: input features were constructed as six-day rolling averages of the process variables to forecast the aeration tank state six days ahead, strictly aligning the machine learning formulation with the physical dynamics of the system.
