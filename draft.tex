@@ -1,0 +1,258 @@
+
+%\documentclass[12pt]{article}
+\documentclass[conference]{IEEEtran}
+
+\usepackage{xcolor}
+\usepackage[margin=1in]{geometry}
+\usepackage{setspace}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning}
+\usepackage{pifont}
+\usepackage{hyperref}
+
+% Stage colours used in the process-flow TikZ figure
+\colorlet{cpwt}{blue!70!black}
+\colorlet{cwao}{green!55!black}
+\colorlet{cet}{violet!80!black}
+\colorlet{cat}{blue!80!black}
+% Command to mark a section as completed
+\newcommand{\completedsection}[1]{{\color{green!60!black}\section{#1}}}
+
+\title{Research Plan: COD Prediction in Wastewater Treatment}
+\author{Ong Jai Sheng}
+\date{\today}
+
+\begin{document}
+\maketitle
+\onehalfspacing
+
+Core Question: How do different temporal feature engineering strategies (Raw Sensor Baseline vs.\ Kalman Filtering vs.\ Kalman+ARIMA) and different modelling architectures (Traditional Machine Learning vs.\ Deep Learning) affect out-of-sample $R^2$ performance when predicting wastewater \texttt{AT\_COD}?
+
+
+\section{Introduction}
+
+
+\section{Materials and Methods}
+
+\subsection{Dataset and Biological Treatment Process}
+
+To maintain industrial confidentiality, the dataset used in this study was derived by applying a controlled stochastic perturbation to operational measurements from an active biological wastewater treatment facility. Specifically, independent Gaussian noise with a standard deviation of 0.5\% of each variable's observed range was applied to the original sensor readings, producing a statistically representative simulated dataset that preserves the temporal dynamics and inter-variable relationships of the real process while preventing proprietary data disclosure. The resulting dataset comprised 983 chronological daily observations spanning the full operational record of the facility.
+
+The treatment process follows a four-stage pipeline, illustrated in Fig.~\ref{fig:process_flow}. Raw industrial wastewater first enters the Process Wastewater Tank (PWT), which acts as a primary collection and homogenisation buffer. The wastewater then passes through Wet Air Oxidation (WAO), a thermochemical pre-treatment stage that breaks down refractory organic compounds prior to biological treatment. The partially oxidised effluent subsequently enters the Equalization Tank (ET), which stabilises flow and load variability before the final biological stage. The aeration tank (AT) constitutes the core activated sludge reactor, where aerobic microorganisms mineralise residual organic matter under controlled aeration.
+
+\begin{figure}[H]
+\centering
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}[
+    font=\small,
+    box/.style={rounded corners=4pt, line width=1.5pt,
+                text width=3.2cm, align=center,
+                inner sep=6pt, minimum height=1.8cm},
+    varbox/.style={dashed, rounded corners=3pt, line width=1.2pt,
+                   text width=3.2cm, align=left, inner sep=5pt,
+                   font=\footnotesize},
+    mainarrow/.style={-{Stealth[length=8pt,width=5pt]},
+                      line width=2pt, draw=gray!60!black},
+    dasharrow/.style={-{Stealth[length=5pt,width=4pt]},
+                      dashed, thick, draw=gray!50},
+]
+
+%% ---- Stage header boxes ----------------------------------------
+\node[box, draw=cpwt, fill=cpwt!10] (s1)
+    {\textcolor{cpwt}{\Large\ding{172}}\\[3pt]
+     \textbf{Process Wastewater}\\
+     \textbf{Tank (PWT)}};
+
+\node[box, draw=cwao, fill=cwao!10, right=1.2cm of s1] (s2)
+    {\textcolor{cwao}{\Large\ding{173}}\\[3pt]
+     \textbf{Wet Air Oxidation}\\
+     \textbf{Process (WAO)}};
+
+\node[box, draw=cet, fill=cet!10, right=1.2cm of s2] (s3)
+    {\textcolor{cet}{\Large\ding{174}}\\[3pt]
+     \textbf{Equalization Tank}\\
+     \textbf{(ET)}};
+
+\node[box, draw=cat, fill=cat!10, right=1.2cm of s3] (s4)
+    {\textcolor{cat}{\Large\ding{175}}\\[3pt]
+     \textbf{Aeration Tank}\\
+     \textbf{(AT)}};
+
+%% ---- Process flow arrows ---------------------------------------
+\draw[mainarrow] (s1.east) -- (s2.west);
+\draw[mainarrow] (s2.east) -- (s3.west);
+\draw[mainarrow] (s3.east) -- (s4.west);
+
+%% ---- Variable boxes --------------------------------------------
+\node[varbox, draw=cpwt, below=1.5cm of s1] (v1)
+    {\textbf{15}~PWT\_COD};
+
+\node[varbox, draw=cwao, below=1.5cm of s2] (v2)
+    {\textbf{16}~PostWAO\_COD\\[2pt]
+     \textbf{17}~PWT\_Flow\\[2pt]
+     \textbf{18}~WAO\_Flow};
+
+\node[varbox, draw=cet, below=1.5cm of s3] (v3)
+    {\textbf{10}~ET\_COD\\[2pt]
+     \textbf{11}~ET\_Phenol\\[2pt]
+     \textbf{12}~ET\_OP\\[2pt]
+     \textbf{13}~ET\_NH$_4$-N\\[2pt]
+     \textbf{14}~ET\_pH};
+
+\node[varbox, draw=cat, below=1.5cm of s4] (v4)
+    {\textbf{1}~~AT\_COD\\[2pt]
+     \textbf{2}~~AT\_DO\\[2pt]
+     \textbf{3}~~AT\_pH\\[2pt]
+     \textbf{4}~~AT\_Inflow\\[2pt]
+     \textbf{5}~~AT\_FM\_Ratio\\[2pt]
+     \textbf{6}~~AT\_MLSS\\[2pt]
+     \textbf{7}~~AT\_Temp\\[2pt]
+     \textbf{8}~~AT\_Aeration\_Rate\\[2pt]
+     \textbf{9}~~AT\_Conductivity};
+
+%% ---- Dashed drop arrows ----------------------------------------
+\draw[dasharrow] (s1.south) -- (v1.north);
+\draw[dasharrow] (s2.south) -- (v2.north);
+\draw[dasharrow] (s3.south) -- (v3.north);
+\draw[dasharrow] (s4.south) -- (v4.north);
+
+\end{tikzpicture}%
+}
+\caption{Four-stage industrial wastewater treatment pipeline.
+         Solid arrows denote the direction of wastewater flow.
+         Dashed arrows indicate the sensor variables collected at
+         each stage; \texttt{AT\_COD}~(1) and \texttt{AT\_DO}~(2)
+         are the primary prediction targets, and all remaining
+         variables serve as input features.}
+\label{fig:process_flow}
+\end{figure}
+
+The two primary prediction targets in this study are the Chemical Oxygen Demand within the aeration tank (AT\_COD), which quantifies the residual organic load at the biological treatment stage, and the Dissolved Oxygen concentration (AT\_DO), which governs aerobic microbial activity and process efficiency. The remaining variables across all four process stages serve as input features. Table~\ref{tab:variables} summarises the full set of measured variables, their abbreviations, and their roles in the predictive modelling pipeline.
+
+\begin{table}[H]
+    \caption{Measured Process Variables Grouped by Treatment Stage}
+    \label{tab:variables}
+    \centering
+    \includegraphics[width=\linewidth]{dataset.png}
+\end{table}
+
+A fundamental physical constraint governing this process is the aeration tank's hydraulic retention time of approximately six days. Consequently, influent quality fluctuations required up to six days to manifest in the effluent, meaning contemporaneous sensor readings did not reflect instantaneous cause-and-effect relationships. This temporal delay dictated the time-series architecture of the predictive models: input features were constructed as six-day rolling averages of the process variables to forecast the aeration tank state six days ahead, strictly aligning the machine learning formulation with the physical dynamics of the system.
+
+\subsection{Target-Derived Feature Engineering (The Kalman/ARIMA Pipeline)}
+
+Because the 16 core sensor variables lacked sufficient direct correlation with the volatile \texttt{AT\_COD} target, two autoregressive features were engineered directly from the target time series under a strict walk-forward expanding-window protocol. Each feature was constructed at every time step $t$ using only observations available up to and including $t$, ensuring no future information contaminated any training sample.
+
+\textbf{Part 1: Kalman Filter State-Space Formulation.}
+The Kalman-filtered feature \texttt{AT\_CODKSp1} was derived by modelling the \texttt{AT\_COD} time series as a two-dimensional linear dynamical system. The state vector $\mathbf{x}_t = [\mu_t,\;\dot{\mu}_t]^\top \in \mathbb{R}^2$ encodes the instantaneous COD level $\mu_t$ and its first-order rate of change $\dot{\mu}_t$. The system obeys the discrete-time state-space equations
+
+\begin{equation}
+    \mathbf{x}_t = \mathbf{F}\,\mathbf{x}_{t-1} + \mathbf{w}_{t-1}, \qquad \mathbf{w}_{t-1} \sim \mathcal{N}(\mathbf{0},\,\mathbf{Q})
+    \label{eq:kf_state}
+\end{equation}
+
+\begin{equation}
+    z_t = \mathbf{H}\,\mathbf{x}_t + v_t, \qquad v_t \sim \mathcal{N}(0,\,R)
+    \label{eq:kf_obs}
+\end{equation}
+
+where $z_t$ is the scalar observed \texttt{AT\_COD} at time $t$; $\mathbf{F} = \bigl[\begin{smallmatrix}1&1\\0&1\end{smallmatrix}\bigr]$ is the constant-velocity state transition matrix; $\mathbf{H} = [1,\;0]$ is the observation matrix that extracts the level component; $\mathbf{Q}$ and $R$ are the process and observation noise covariance matrices, respectively; and $\mathbf{w}_{t-1}$, $v_t$ are mutually independent zero-mean Gaussian noise terms. The noise covariances were initialised empirically as the \texttt{pykalman} library defaults: $\mathbf{Q}^{(0)} = 0.1\,\mathbf{I}_2$ and $R^{(0)} = 0.1$, with initial state mean $\hat{\mathbf{x}}_0 = [1,\,0]^\top$ and initial error covariance $\mathbf{P}_0 = \mathbf{I}_2$. These parameters were then refined at each expanding-window step by the Expectation--Maximisation (EM) algorithm over $n_\text{iter}=10$ iterations.
+
+The filter propagates estimates through a two-step recursive cycle. In the \emph{prediction} step, the prior state estimate and error covariance are projected forward:
+
+\begin{equation}
+    \hat{\mathbf{x}}_{t|t-1} = \mathbf{F}\,\hat{\mathbf{x}}_{t-1|t-1}
+    \label{eq:kf_predict_state}
+\end{equation}
+
+\begin{equation}
+    \mathbf{P}_{t|t-1} = \mathbf{F}\,\mathbf{P}_{t-1|t-1}\,\mathbf{F}^\top + \mathbf{Q}
+    \label{eq:kf_predict_cov}
+\end{equation}
+
+where $\hat{\mathbf{x}}_{t|t-1}$ is the predicted state estimate at time $t$ given observations up to $t-1$, and $\mathbf{P}_{t|t-1}$ is its associated error covariance matrix. In the \emph{update} step, the new observation $z_t$ is assimilated through the Kalman gain:
+
+\begin{equation}
+    \mathbf{K}_t = \mathbf{P}_{t|t-1}\,\mathbf{H}^\top \!\left(\mathbf{H}\,\mathbf{P}_{t|t-1}\,\mathbf{H}^\top + R\right)^{-1}
+    \label{eq:kf_gain}
+\end{equation}
+
+\begin{equation}
+    \hat{\mathbf{x}}_{t|t} = \hat{\mathbf{x}}_{t|t-1} + \mathbf{K}_t\!\left(z_t - \mathbf{H}\,\hat{\mathbf{x}}_{t|t-1}\right)
+    \label{eq:kf_update_state}
+\end{equation}
+
+\begin{equation}
+    \mathbf{P}_{t|t} = \left(\mathbf{I} - \mathbf{K}_t\,\mathbf{H}\right)\mathbf{P}_{t|t-1}
+    \label{eq:kf_update_cov}
+\end{equation}
+
+where $\mathbf{K}_t$ is the Kalman gain matrix; $\hat{\mathbf{x}}_{t|t}$ is the posterior state estimate; $\mathbf{P}_{t|t}$ is the updated error covariance; and $\mathbf{I}$ is the $2\!\times\!2$ identity matrix. The first engineered feature, referred to in the dataset as \texttt{AT\_CODKSp1}, is denoted mathematically as $f^{(1)}_t$ and defined as the filtered COD level from the previous time step:
+
+\begin{equation}
+    f^{(1)}_t \;=\; \hat{\mu}_{t-1|t-1} \;=\; \mathbf{e}_1^\top\,\hat{\mathbf{x}}_{t-1|t-1}
+    \label{eq:ksp1}
+\end{equation}
+
+where $f^{(1)}_t$ is the first Kalman-derived feature at time $t$, and $\mathbf{e}_1 = [1,\;0]^\top$ is the first standard basis vector. The one-step lag arises from the pipeline implementation: at each step $t$, the Kalman filter is applied to the strictly historical window $\{z_1,\ldots,z_{t-1}\}$, and the last filtered state $\hat{\mathbf{x}}_{t-1|t-1}$ is recorded as the feature for observation $t$. This ensures $f^{(1)}_t$ contains no same-time or future information.
+
+\textbf{Part 2: ARIMA Forecasting of the Smoothed Series.}
+The second engineered feature \texttt{AT\_CODKSp2} was generated by applying an ARIMA model to the Kalman-smoothed series. The smoothed series $\{\tilde{\mu}_\tau\}_{\tau=1}^{t}$, obtained from the Rauch--Tung--Striebel backward smoothing pass on the same expanding window, provides a noise-reduced signal that improves ARIMA stationarity assessment and order selection. An ARIMA$(p,\,d,\,q)$ model is defined by
+
+\begin{equation}
+    \phi(B)\,(1-B)^d\,\tilde{\mu}_t = \theta(B)\,\varepsilon_t
+    \label{eq:arima}
+\end{equation}
+
+where $B$ is the backshift operator such that $B^k\tilde{\mu}_t = \tilde{\mu}_{t-k}$; $(1-B)^d$ denotes $d$-fold differencing to induce stationarity; $\phi(B) = 1 - \sum_{i=1}^{p}\phi_i\,B^i$ is the autoregressive polynomial of order $p$; $\theta(B) = 1 + \sum_{j=1}^{q}\theta_j\,B^j$ is the moving-average polynomial of order $q$; and $\varepsilon_t \sim \mathrm{WN}(0,\sigma^2)$ is a white noise process. The integer orders $(p,\,d,\,q)$ were determined automatically at each window step by minimising the Akaike Information Criterion (AIC) via \texttt{pmdarima}'s \texttt{auto\_arima} routine. The resulting one-step-ahead conditional expectation defines the second engineered feature, referred to in the dataset as \texttt{AT\_CODKSp2} and denoted mathematically as $f^{(2)}_t$:
+
+\begin{equation}
+    f^{(2)}_t \;=\; \hat{\tilde{\mu}}_{t|t-1} \;=\; \mathbb{E}\!\left[\tilde{\mu}_{t} \mid \mathcal{F}_{t-1}\right]
+    \label{eq:ksp2}
+\end{equation}
+
+where $f^{(2)}_t$ is the second ARIMA-derived feature at time $t$, and $\mathcal{F}_{t-1} = \sigma(\tilde{\mu}_1, \ldots, \tilde{\mu}_{t-1})$ is the filtration generated by the smoothed COD series up to time $t-1$. Consistent with the $f^{(1)}_t$ construction, the ARIMA model at step $t$ is fitted on the smoothed series derived from the strictly historical window $\{z_1,\ldots,z_{t-1}\}$, and \texttt{predict(n\_periods=1)} returns the one-step forecast of the smoothed COD \emph{at} time $t$, using only information available before $t$.
+
+\textbf{Part 3: Walk-Forward Expanding Window and Analytical Burn-In.}
+Both features were constructed under a walk-forward expanding-window protocol to prevent temporal data leakage. At each time step $t \in \{t_0,\, t_0\!+\!1,\, \ldots,\, T\}$, the complete pipeline --- Kalman EM fitting, filtered and smoothed state estimation, ARIMA order selection, and one-step forecast --- was executed exclusively on the strictly historical sub-series $\{z_1, \ldots, z_{t-1}\}$:
+
+\begin{equation}
+    \bigl(f^{(1)}_t,\; f^{(2)}_t\bigr) = \mathcal{P}\!\left(\{z_\tau\}_{\tau=1}^{t-1}\right)
+    \label{eq:pipeline}
+\end{equation}
+
+where $\mathcal{P}(\cdot)$ denotes the complete feature-generation pipeline. The minimum initialisation period was set to $t_0 = 20$, reflecting the number of observations required for the Kalman EM algorithm to converge to stable noise covariance estimates. Consequently, the first 20 observations were discarded as an analytical burn-in period, yielding a finalised evaluation dataset of 963 strictly out-of-sample chronological observations.
+
+\subsection{Proposed Regression Architecture: Extra Trees}
+
+% [To be filled]
+
+\subsection{Deep Learning Benchmark (Phase 3 LSTM Optimization)}
+
+% [To be filled]
+
+\subsection{Experimental Setup and Evaluation Metrics}
+
+% [To be filled]
+
+\section{Results and Discussion}
+
+
+\section{Conclusion}
+
+\section{References}
+
+Takuya Akiba, Shotaro Sano, Toshihiko Yanase, Takeru Ohta, and Masanori Koyama. 2019.
+	Optuna: A Next-generation Hyperparameter Optimization Framework. In KDD.
+
+
+%\begin{itemize}
+%    \item \textbf{The Story:} Feature engineering (like writing Kalman filter code) takes a lot of human effort. What if we used an AI that naturally understands time all by itself (raw data fed directly into an LSTM neural network)?
+%    \item \textbf{The Evidence:} You introduce \textbf{LSTM (Deep Learning)}. Because LSTM has literal ``memory cells'' built into its code, you test whether it can beat your meticulously engineered PLS model.
+%    \item \textbf{The Grand Finale:} You present the final comparison. Did human math (Kalman + PLS) beat the deep learning method (LSTM), which is the ultimate "Rolling Modeling Approach."
+%\end{itemize}
+\end{document}
