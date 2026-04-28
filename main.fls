@@ -315,11 +315,11 @@ INPUT /opt/texlive/texdir/texmf-dist/fonts/tfm/public/amsfonts/symbols/msbm10.tf
 INPUT /opt/texlive/texdir/texmf-dist/fonts/tfm/public/amsfonts/symbols/msbm7.tfm
 INPUT /opt/texlive/texdir/texmf-dist/fonts/tfm/adobe/courier/pcrr7t.tfm
 INPUT /opt/texlive/texdir/texmf-dist/fonts/tfm/adobe/times/ptmrc7t.tfm
-INPUT ./dataset.png
-INPUT ./dataset.png
-INPUT ./dataset.png
-INPUT ./dataset.png
-INPUT ./dataset.png
+INPUT ./assets/dataset.png
+INPUT ./assets/dataset.png
+INPUT ./assets/dataset.png
+INPUT ./assets/dataset.png
+INPUT ./assets/dataset.png
 INPUT /opt/texlive/texdir/texmf-dist/fonts/vf/adobe/times/ptmr7t.vf
 INPUT /opt/texlive/texdir/texmf-dist/fonts/tfm/adobe/times/ptmr8r.tfm
 INPUT /opt/texlive/texdir/texmf-var/fonts/map/pdftex/updmap/pdftex.map
