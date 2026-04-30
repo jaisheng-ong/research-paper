@@ -147,7 +147,88 @@ The two primary prediction targets in this study are the Chemical Oxygen Demand 
 A fundamental physical constraint governing this process is the aeration tank's hydraulic retention time of approximately six days. Consequently, influent quality fluctuations required up to six days to manifest in the effluent, meaning contemporaneous sensor readings did not reflect instantaneous cause-and-effect relationships. This temporal delay dictated the time-series architecture of the predictive models: input features were constructed as six-day rolling averages of the process variables to forecast the aeration tank state six days ahead, strictly aligning the machine learning formulation with the physical dynamics of the system.
 
 \subsection{Target-Derived Feature Engineering (The Kalman/ARIMA Pipeline)}
-% [To be filled]
+
+Because the 16 core sensor variables lacked sufficient direct correlation with the volatile \texttt{AT\_COD} target, two autoregressive features were engineered directly from the target time series under a strict walk-forward expanding-window protocol. Each feature was constructed at every time step $t$ using only observations available up to and including $t$, ensuring no future information contaminated any training sample.
+
+\textbf{Part 1: Kalman Filter State-Space Formulation.}
+The Kalman-filtered feature \texttt{AT\_CODKSp1} was derived by modelling the \texttt{AT\_COD} time series as a two-dimensional linear dynamical system. The state vector $\mathbf{x}_t = [\mu_t,\;\dot{\mu}_t]^\top \in \mathbb{R}^2$ encodes the instantaneous COD level $\mu_t$ and its first-order rate of change $\dot{\mu}_t$. The system obeys the discrete-time state-space equations
+
+\begin{equation}
+    \mathbf{x}_t = \mathbf{F}\,\mathbf{x}_{t-1} + \mathbf{w}_{t-1}, \qquad \mathbf{w}_{t-1} \sim \mathcal{N}(\mathbf{0},\,\mathbf{Q})
+    \label{eq:kf_state}
+\end{equation}
+
+\begin{equation}
+    z_t = \mathbf{H}\,\mathbf{x}_t + v_t, \qquad v_t \sim \mathcal{N}(0,\,R)
+    \label{eq:kf_obs}
+\end{equation}
+
+where $z_t$ is the scalar observed \texttt{AT\_COD} at time $t$; $\mathbf{F} = \bigl[\begin{smallmatrix}1&1\\0&1\end{smallmatrix}\bigr]$ is the constant-velocity state transition matrix; $\mathbf{H} = [1,\;0]$ is the observation matrix that extracts the level component; $\mathbf{Q}$ and $R$ are the process and observation noise covariance matrices, respectively; and $\mathbf{w}_{t-1}$, $v_t$ are mutually independent zero-mean Gaussian noise terms. The noise covariances were initialised empirically as the \texttt{pykalman} library defaults: $\mathbf{Q}^{(0)} = 0.1\,\mathbf{I}_2$ and $R^{(0)} = 0.1$, with initial state mean $\hat{\mathbf{x}}_0 = [1,\,0]^\top$ and initial error covariance $\mathbf{P}_0 = \mathbf{I}_2$. These parameters were then refined at each expanding-window step by the Expectation--Maximisation (EM) algorithm over $n_\text{iter}=10$ iterations.
+
+The filter propagates estimates through a two-step recursive cycle. In the \emph{prediction} step, the prior state estimate and error covariance are projected forward:
+
+\begin{equation}
+    \hat{\mathbf{x}}_{t|t-1} = \mathbf{F}\,\hat{\mathbf{x}}_{t-1|t-1}
+    \label{eq:kf_predict_state}
+\end{equation}
+
+\begin{equation}
+    \mathbf{P}_{t|t-1} = \mathbf{F}\,\mathbf{P}_{t-1|t-1}\,\mathbf{F}^\top + \mathbf{Q}
+    \label{eq:kf_predict_cov}
+\end{equation}
+
+where $\hat{\mathbf{x}}_{t|t-1}$ is the predicted state estimate at time $t$ given observations up to $t-1$, and $\mathbf{P}_{t|t-1}$ is its associated error covariance matrix. In the \emph{update} step, the new observation $z_t$ is assimilated through the Kalman gain:
+
+\begin{equation}
+    \mathbf{K}_t = \mathbf{P}_{t|t-1}\,\mathbf{H}^\top \!\left(\mathbf{H}\,\mathbf{P}_{t|t-1}\,\mathbf{H}^\top + R\right)^{-1}
+    \label{eq:kf_gain}
+\end{equation}
+
+\begin{equation}
+    \hat{\mathbf{x}}_{t|t} = \hat{\mathbf{x}}_{t|t-1} + \mathbf{K}_t\!\left(z_t - \mathbf{H}\,\hat{\mathbf{x}}_{t|t-1}\right)
+    \label{eq:kf_update_state}
+\end{equation}
+
+\begin{equation}
+    \mathbf{P}_{t|t} = \left(\mathbf{I} - \mathbf{K}_t\,\mathbf{H}\right)\mathbf{P}_{t|t-1}
+    \label{eq:kf_update_cov}
+\end{equation}
+
+where $\mathbf{K}_t$ is the Kalman gain matrix; $\hat{\mathbf{x}}_{t|t}$ is the posterior state estimate; $\mathbf{P}_{t|t}$ is the updated error covariance; and $\mathbf{I}$ is the $2\!\times\!2$ identity matrix. The first engineered feature, referred to in the dataset as \texttt{AT\_CODKSp1}, is denoted mathematically as $f^{(1)}_t$ and defined as the filtered COD level from the previous time step:
+
+\begin{equation}
+    f^{(1)}_t \;=\; \hat{\mu}_{t-1|t-1} \;=\; \mathbf{e}_1^\top\,\hat{\mathbf{x}}_{t-1|t-1}
+    \label{eq:ksp1}
+\end{equation}
+
+where $f^{(1)}_t$ is the first Kalman-derived feature at time $t$, and $\mathbf{e}_1 = [1,\;0]^\top$ is the first standard basis vector. The one-step lag arises from the pipeline implementation: at each step $t$, the Kalman filter is applied to the strictly historical window $\{z_1,\ldots,z_{t-1}\}$, and the last filtered state $\hat{\mathbf{x}}_{t-1|t-1}$ is recorded as the feature for observation $t$. This ensures $f^{(1)}_t$ contains no same-time or future information.
+
+\textbf{Part 2: ARIMA Forecasting of the Smoothed Series.}
+The second engineered feature \texttt{AT\_CODKSp2} was generated by applying an ARIMA model to the Kalman-smoothed series. The smoothed series $\{\tilde{\mu}_\tau\}_{\tau=1}^{t}$, obtained from the Rauch--Tung--Striebel backward smoothing pass on the same expanding window, provides a noise-reduced signal that improves ARIMA stationarity assessment and order selection. An ARIMA$(p,\,d,\,q)$ model is defined by
+
+\begin{equation}
+    \phi(B)\,(1-B)^d\,\tilde{\mu}_t = \theta(B)\,\varepsilon_t
+    \label{eq:arima}
+\end{equation}
+
+where $B$ is the backshift operator such that $B^k\tilde{\mu}_t = \tilde{\mu}_{t-k}$; $(1-B)^d$ denotes $d$-fold differencing to induce stationarity; $\phi(B) = 1 - \sum_{i=1}^{p}\phi_i\,B^i$ is the autoregressive polynomial of order $p$; $\theta(B) = 1 + \sum_{j=1}^{q}\theta_j\,B^j$ is the moving-average polynomial of order $q$; and $\varepsilon_t \sim \mathrm{WN}(0,\sigma^2)$ is a white noise process. The integer orders $(p,\,d,\,q)$ were determined automatically at each window step by minimising the Akaike Information Criterion (AIC) via \texttt{pmdarima}'s \texttt{auto\_arima} routine. The resulting one-step-ahead conditional expectation defines the second engineered feature, referred to in the dataset as \texttt{AT\_CODKSp2} and denoted mathematically as $f^{(2)}_t$:
+
+\begin{equation}
+    f^{(2)}_t \;=\; \hat{\tilde{\mu}}_{t|t-1} \;=\; \mathbb{E}\!\left[\tilde{\mu}_{t} \mid \mathcal{F}_{t-1}\right]
+    \label{eq:ksp2}
+\end{equation}
+
+where $f^{(2)}_t$ is the second ARIMA-derived feature at time $t$, and $\mathcal{F}_{t-1} = \sigma(\tilde{\mu}_1, \ldots, \tilde{\mu}_{t-1})$ is the filtration generated by the smoothed COD series up to time $t-1$. Consistent with the $f^{(1)}_t$ construction, the ARIMA model at step $t$ is fitted on the smoothed series derived from the strictly historical window $\{z_1,\ldots,z_{t-1}\}$, and \texttt{predict(n\_periods=1)} returns the one-step forecast of the smoothed COD \emph{at} time $t$, using only information available before $t$.
+
+\textbf{Part 3: Walk-Forward Expanding Window and Analytical Burn-In.}
+Both features were constructed under a walk-forward expanding-window protocol to prevent temporal data leakage. At each time step $t \in \{t_0,\, t_0\!+\!1,\, \ldots,\, T\}$, the complete pipeline --- Kalman EM fitting, filtered and smoothed state estimation, ARIMA order selection, and one-step forecast --- was executed exclusively on the strictly historical sub-series $\{z_1, \ldots, z_{t-1}\}$:
+
+\begin{equation}
+    \bigl(f^{(1)}_t,\; f^{(2)}_t\bigr) = \mathcal{P}\!\left(\{z_\tau\}_{\tau=1}^{t-1}\right)
+    \label{eq:pipeline}
+\end{equation}
+
+where $\mathcal{P}(\cdot)$ denotes the complete feature-generation pipeline. The minimum initialisation period was set to $t_0 = 20$, reflecting the number of observations required for the Kalman EM algorithm to converge to stable noise covariance estimates. Consequently, the first 20 observations were discarded as an analytical burn-in period, yielding a finalised evaluation dataset of 963 strictly out-of-sample chronological observations.
 
 \subsection{Proposed Regression Architecture: Extra Trees}
 
