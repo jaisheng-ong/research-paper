@@ -313,7 +313,6 @@ INPUT /opt/texlive/texdir/texmf-dist/fonts/tfm/public/amsfonts/symbols/msam10.tf
 INPUT /opt/texlive/texdir/texmf-dist/fonts/tfm/public/amsfonts/symbols/msam7.tfm
 INPUT /opt/texlive/texdir/texmf-dist/fonts/tfm/public/amsfonts/symbols/msbm10.tfm
 INPUT /opt/texlive/texdir/texmf-dist/fonts/tfm/public/amsfonts/symbols/msbm7.tfm
-INPUT /opt/texlive/texdir/texmf-dist/fonts/tfm/adobe/courier/pcrr7t.tfm
 INPUT /opt/texlive/texdir/texmf-dist/fonts/tfm/adobe/times/ptmrc7t.tfm
 INPUT ./assets/dataset.png
 INPUT ./assets/dataset.png
@@ -338,8 +337,6 @@ INPUT /opt/texlive/texdir/texmf-dist/fonts/tfm/adobe/times/ptmb8r.tfm
 INPUT /opt/texlive/texdir/texmf-dist/fonts/vf/adobe/times/ptmb7t.vf
 INPUT /opt/texlive/texdir/texmf-dist/fonts/tfm/adobe/times/ptmb8r.tfm
 INPUT /opt/texlive/texdir/texmf-dist/fonts/vf/adobe/times/ptmr7t.vf
-INPUT /opt/texlive/texdir/texmf-dist/fonts/vf/adobe/courier/pcrr7t.vf
-INPUT /opt/texlive/texdir/texmf-dist/fonts/tfm/adobe/courier/pcrr8r.tfm
 INPUT /opt/texlive/texdir/texmf-dist/fonts/vf/adobe/times/ptmrc7t.vf
 INPUT /opt/texlive/texdir/texmf-dist/fonts/tfm/adobe/times/ptmr8r.tfm
 INPUT /opt/texlive/texdir/texmf-dist/fonts/tfm/public/cm/cmbx10.tfm

@@ -129,13 +129,11 @@ The treatment process follows a four-stage pipeline, illustrated in Fig.~\ref{fi
 \caption{Four-stage industrial wastewater treatment pipeline.
          Solid arrows denote the direction of wastewater flow.
          Dashed arrows indicate the sensor variables collected at
-         each stage; \texttt{AT\_COD}~(1) and \texttt{AT\_DO}~(2)
-         are the primary prediction targets, and all remaining
-         variables serve as input features.}
+         each stage.}
 \label{fig:process_flow}
 \end{figure}
 
-The two primary prediction targets in this study are the Chemical Oxygen Demand within the aeration tank (AT\_COD), which quantifies the residual organic load at the biological treatment stage, and the Dissolved Oxygen concentration (AT\_DO), which governs aerobic microbial activity and process efficiency. The remaining variables across all four process stages serve as input features. Table~\ref{tab:variables} summarises the full set of measured variables, their abbreviations, and their roles in the predictive modelling pipeline.
+The sole prediction target of this study is the Chemical Oxygen Demand within the aeration tank (\texttt{AT\_COD}), which quantifies the residual organic load at the biological treatment stage and is the primary operational indicator of treatment performance. Although Dissolved Oxygen (\texttt{AT\_DO}) is listed in the raw dataset and is physically relevant to the aeration process, it was excluded from the modelling pipeline during preprocessing and is not a prediction target in this study. Table~\ref{tab:variables} summarises the full set of measured variables, their abbreviations, and their roles.
 
 \begin{table}[H]
     \caption{Measured Process Variables Grouped by Treatment Stage}
@@ -144,11 +142,14 @@ The two primary prediction targets in this study are the Chemical Oxygen Demand 
     \includegraphics[width=\linewidth]{dataset.png}
 \end{table}
 
+
+Prior to modelling, a structured preprocessing pipeline was applied to reduce the 25 available sensor variables to a clean predictor set. First, \texttt{AT\_DO} was excluded based on domain considerations, and the raw microbial count columns (\texttt{c1}--\texttt{c8}) were removed due to measurement unreliability, reducing the candidate feature set to 16 variables. Second, Variance Inflation Factor (VIF) analysis was conducted to detect multicollinearity. The variable \texttt{ET\_COD} was identified with a VIF score of 21.14, far exceeding the standard threshold of 10, and was subsequently dropped. This yielded a final set of \textbf{15 core predictor variables} fed into all downstream models.
+
 A fundamental physical constraint governing this process is the aeration tank's hydraulic retention time of approximately six days. Consequently, influent quality fluctuations required up to six days to manifest in the effluent, meaning contemporaneous sensor readings did not reflect instantaneous cause-and-effect relationships. This temporal delay dictated the time-series architecture of the predictive models: input features were constructed as six-day rolling averages of the process variables to forecast the aeration tank state six days ahead, strictly aligning the machine learning formulation with the physical dynamics of the system.
 
 \subsection{Target-Derived Feature Engineering (The Kalman/ARIMA Pipeline)}
 
-Because the 16 core sensor variables lacked sufficient direct correlation with the volatile \texttt{AT\_COD} target, two autoregressive features were engineered directly from the target time series under a strict walk-forward expanding-window protocol. Each feature was constructed at every time step $t$ using only observations available up to and including $t$, ensuring no future information contaminated any training sample.
+Because the 15 core sensor variables retained after preprocessing lacked sufficient direct correlation with the volatile \texttt{AT\_COD} target, two autoregressive features were engineered directly from the target time series under a strict walk-forward expanding-window protocol. Each feature was constructed at every time step $t$ using only observations available strictly before $t$, ensuring no future information contaminated any training sample.
 
 \textbf{Part 1: Kalman Filter State-Space Formulation.}
 The Kalman-filtered feature \texttt{AT\_CODKSp1} was derived by modelling the \texttt{AT\_COD} time series as a two-dimensional linear dynamical system. The state vector $\mathbf{x}_t = [\mu_t,\;\dot{\mu}_t]^\top \in \mathbb{R}^2$ encodes the instantaneous COD level $\mu_t$ and its first-order rate of change $\dot{\mu}_t$. The system obeys the discrete-time state-space equations
